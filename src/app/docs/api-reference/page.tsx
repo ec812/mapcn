@@ -75,7 +75,8 @@ export default function ApiReferencePage() {
           >
             MapOptions
           </DocsLink>{" "}
-          from MapLibre GL (excluding <DocsCode>container</DocsCode>).
+          from MapLibre GL (excluding <DocsCode>container</DocsCode> and{" "}
+          <DocsCode>style</DocsCode>).
         </p>
         <DocsPropTable
           props={[
@@ -84,6 +85,12 @@ export default function ApiReferencePage() {
               type: "ReactNode",
               description:
                 "Child components (markers, popups, controls, routes).",
+            },
+            {
+              name: "styles",
+              type: "{ light?: string | StyleSpecification; dark?: string | StyleSpecification }",
+              description:
+                "Custom map styles for light and dark themes. Overrides the default Carto base map tiles.",
             },
           ]}
         />

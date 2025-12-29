@@ -8,6 +8,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -32,14 +33,21 @@ function useMap() {
   return context;
 }
 
-const mapStyles = {
+const defaultStyles = {
   dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
   light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
 };
 
+type MapStyleOption = string | MapLibreGL.StyleSpecification;
+
 type MapProps = {
   children?: ReactNode;
-} & Omit<MapLibreGL.MapOptions, "container">;
+  /** Custom map styles for light and dark themes. Overrides the default Carto styles. */
+  styles?: {
+    light?: MapStyleOption;
+    dark?: MapStyleOption;
+  };
+} & Omit<MapLibreGL.MapOptions, "container" | "style">;
 
 const DefaultLoader = () => (
   <div className="absolute inset-0 flex items-center justify-center">
@@ -51,12 +59,20 @@ const DefaultLoader = () => (
   </div>
 );
 
-function Map({ children, ...props }: MapProps) {
+function Map({ children, styles, ...props }: MapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreGL.Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isStyleLoaded, setIsStyleLoaded] = useState(false);
   const { resolvedTheme } = useTheme();
+
+  const mapStyles = useMemo(
+    () => ({
+      dark: styles?.dark ?? defaultStyles.dark,
+      light: styles?.light ?? defaultStyles.light,
+    }),
+    [styles]
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;

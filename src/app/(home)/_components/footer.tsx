@@ -5,7 +5,7 @@ export function Footer() {
     <footer className="w-full px-6 py-6 border-t border-border/40">
       <div className="mx-auto max-w-5xl flex items-center justify-between text-xs text-muted-foreground">
         <span>
-          Made by{" "}
+          Built by{" "}
           <a
             href="https://github.com/AnmolSaini16"
             target="_blank"

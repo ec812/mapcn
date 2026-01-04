@@ -834,6 +834,8 @@ function MapPopup({
 }
 
 type MapRouteProps = {
+  /** Optional unique identifier for the route layer */
+  id?: string;
   /** Array of [longitude, latitude] coordinate pairs defining the route */
   coordinates: [number, number][];
   /** Line color as CSS color value (default: "#4285F4") */
@@ -855,6 +857,7 @@ type MapRouteProps = {
 };
 
 function MapRoute({
+  id,
   coordinates,
   color = "#4285F4",
   width = 3,
@@ -867,8 +870,8 @@ function MapRoute({
 }: MapRouteProps) {
   const { map, isLoaded } = useMap();
   const autoId = useId();
-  const sourceId = `route-source-${autoId}`;
-  const layerId = `route-layer-${autoId}`;
+  const sourceId = id ?? `route-source-${autoId}`;
+  const layerId = id ?? `route-layer-${autoId}`;
 
   // Add source and layer on mount
   useEffect(() => {

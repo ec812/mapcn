@@ -449,6 +449,13 @@ export default function ApiReferencePage() {
         <DocsPropTable
           props={[
             {
+              name: "id",
+              type: "string",
+              default: "undefined (auto-generated)",
+              description:
+                "Optional unique identifier for the route layer. Auto-generated if not provided.",
+            },
+            {
               name: "coordinates",
               type: "[number, number][]",
               description: "Array of [longitude, latitude] coordinate pairs.",

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 import {
   Map,
   MapMarker,
@@ -8,62 +9,178 @@ import {
   MapRoute,
   MarkerLabel,
 } from "@/registry/map";
-import { Loader2 } from "lucide-react";
+import { Loader2, Clock, Route } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-const start = { name: "Times Square", lng: -73.9855, lat: 40.758 };
-const end = { name: "Central Park", lng: -73.9654, lat: 40.7829 };
+const getRouteId = (index: number) => `route-${index}`;
+
+const start = { name: "Amsterdam", lng: 4.9041, lat: 52.3676 };
+const end = { name: "Rotterdam", lng: 4.4777, lat: 51.9244 };
+
+interface RouteData {
+  coordinates: [number, number][];
+  duration: number; // seconds
+  distance: number; // meters
+}
+
+function formatDuration(seconds: number): string {
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `${mins} min`;
+  const hours = Math.floor(mins / 60);
+  const remainingMins = mins % 60;
+  return `${hours}h ${remainingMins}m`;
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
 
 export function OsrmRouteExample() {
-  const [route, setRoute] = useState<[number, number][] | null>(null);
+  const [routes, setRoutes] = useState<RouteData[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const mapRef = useRef<MapLibreMap | null>(null);
 
+  // Fetch routes
   useEffect(() => {
-    async function fetchRoute() {
+    async function fetchRoutes() {
       try {
         const response = await fetch(
-          `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+          `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&alternatives=true`
         );
         const data = await response.json();
 
-        if (data.routes?.[0]?.geometry?.coordinates) {
-          setRoute(data.routes[0].geometry.coordinates);
+        if (data.routes?.length > 0) {
+          const routeData: RouteData[] = data.routes.map(
+            (route: {
+              geometry: { coordinates: [number, number][] };
+              duration: number;
+              distance: number;
+            }) => ({
+              coordinates: route.geometry.coordinates,
+              duration: route.duration,
+              distance: route.distance,
+            })
+          );
+          setRoutes(routeData);
         }
       } catch (error) {
-        console.error("Failed to fetch route:", error);
+        console.error("Failed to fetch routes:", error);
       } finally {
         setIsLoading(false);
       }
     }
 
-    fetchRoute();
+    fetchRoutes();
   }, []);
 
+  // Handle route click - only select topmost route when overlapping
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || routes.length === 0) return;
+
+    const routeIds = routes.map((_, i) => getRouteId(i));
+
+    const handleClick = (e: MapMouseEvent) => {
+      const layers = routeIds.filter((id) => map.getLayer(id));
+      if (layers.length === 0) return;
+
+      const features = map.queryRenderedFeatures(e.point, { layers });
+      if (features.length === 0) return;
+
+      // Only select the topmost route
+      const topLayerId = features[0].layer.id;
+      const clickedIndex = routes.findIndex(
+        (_, i) => getRouteId(i) === topLayerId
+      );
+      if (clickedIndex !== -1 && clickedIndex !== selectedIndex) {
+        setSelectedIndex(clickedIndex);
+      }
+    };
+
+    map.on("click", handleClick);
+    return () => {
+      map.off("click", handleClick);
+    };
+  }, [routes, selectedIndex]);
+
+  // Sort routes so selected is always rendered last (on top)
+  const sortedRoutes = useMemo(
+    () =>
+      routes
+        .map((route, index) => ({ route, index }))
+        .sort((a, b) =>
+          a.index === selectedIndex ? 1 : b.index === selectedIndex ? -1 : 0
+        ),
+    [routes, selectedIndex]
+  );
+
   return (
-    <div className="h-[400px] w-full relative">
-      <Map center={[-73.975, 40.772]} zoom={12.5}>
-        {route && (
-          <MapRoute
-            coordinates={route}
-            color="#6366f1"
-            width={5}
-            opacity={0.85}
-          />
-        )}
+    <div className="h-[500px] w-full relative">
+      <Map ref={mapRef} center={[4.69, 52.14]} zoom={8.5}>
+        {sortedRoutes.map(({ route, index }) => {
+          const isSelected = index === selectedIndex;
+          return (
+            <MapRoute
+              key={getRouteId(index)}
+              id={getRouteId(index)}
+              coordinates={route.coordinates}
+              color={isSelected ? "#6366f1" : "#94a3b8"}
+              width={isSelected ? 6 : 5}
+              opacity={isSelected ? 1 : 0.6}
+            />
+          );
+        })}
 
         <MapMarker longitude={start.lng} latitude={start.lat}>
           <MarkerContent>
             <div className="size-5 rounded-full bg-green-500 border-2 border-white shadow-lg" />
-            <MarkerLabel position="bottom">Start: {start.name}</MarkerLabel>
+            <MarkerLabel position="top">{start.name}</MarkerLabel>
           </MarkerContent>
         </MapMarker>
 
         <MapMarker longitude={end.lng} latitude={end.lat}>
           <MarkerContent>
             <div className="size-5 rounded-full bg-red-500 border-2 border-white shadow-lg" />
-            <MarkerLabel position="bottom">End: {end.name}</MarkerLabel>
+            <MarkerLabel position="bottom">{end.name}</MarkerLabel>
           </MarkerContent>
         </MapMarker>
       </Map>
+
+      {routes.length > 0 && (
+        <div className="absolute top-3 left-3 flex flex-col gap-2">
+          {routes.map((route, index) => {
+            const isActive = index === selectedIndex;
+            const isFastest = index === 0;
+            return (
+              <Button
+                key={index}
+                variant={isActive ? "default" : "secondary"}
+                size="sm"
+                onClick={() => setSelectedIndex(index)}
+                className="justify-start gap-3"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Clock className="size-3.5" />
+                  <span className="font-medium">
+                    {formatDuration(route.duration)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs opacity-80">
+                  <Route className="size-3" />
+                  {formatDistance(route.distance)}
+                </div>
+                {isFastest && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                    Fastest
+                  </span>
+                )}
+              </Button>
+            );
+          })}
+        </div>
+      )}
 
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/50">
